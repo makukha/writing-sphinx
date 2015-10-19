@@ -13,6 +13,12 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
+# General information about the project.
+project = 'writing-sphinx'
+author = 'Author Name'
+copyright = '2015, Author Name'
+
+# Python modules
 import sys
 import os
 import shlex
@@ -34,10 +40,12 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
     'sphinx.ext.ifconfig',
+    'sphinx.ext.doctest',
+    'sphinx.ext.coverage',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ['templates']
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
@@ -49,11 +57,6 @@ source_suffix = '.rst'
 
 # The master toctree document.
 master_doc = 'index'
-
-# General information about the project.
-project = 'writing-sphinx'
-copyright = '2015, Author Name'
-author = 'Author Name'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -79,7 +82,7 @@ language = None
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ['_build']
+exclude_patterns = ['build']
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -142,7 +145,7 @@ html_theme = 'alabaster'
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ['static']
 
 # Add any extra paths that contain custom files (such as robots.txt or
 # .htaccess) here, relative to this directory. These files are copied
@@ -211,7 +214,7 @@ htmlhelp_basename = 'writing-sphinxdoc'
 
 latex_elements = {
 # The paper size ('letterpaper' or 'a4paper').
-#'papersize': 'letterpaper',
+'papersize': 'a4paper',
 
 # The font size ('10pt', '11pt' or '12pt').
 #'pointsize': '10pt',
@@ -357,3 +360,40 @@ epub_exclude_files = ['search.html']
 
 # If false, no index is generated.
 #epub_use_index = True
+
+# -- Options and code for check-for-updates functionality ----------------------------------------------
+
+import codecs
+import json
+import os
+import platform
+import subprocess
+import sys
+import time
+import urllib.request
+
+github_repository = 'makukha/writing-sphinx'
+cached_commit_path = os.path.abspath(os.path.join(os.path.dirname(sys.executable), '..', 'latest_commit'))
+cache_expires_secs = 30
+
+def check_template_updates(repo=github_repository, cachepath=cached_commit_path, cachettl=cache_expires_secs):
+    """
+    Check that current branch of local repository contains latest commit from GitHub.
+    If so, the local writing project uses the latest version of template.
+    """
+    # get last commit hash
+    if os.path.exists(cachepath) and os.path.getmtime(cachepath) + cachettl >= time.time():
+        with open(cachepath) as f:
+            last_commit = f.read()
+    else:
+        response = urllib.request.urlopen('https://api.github.com/repos/{}/git/refs/heads/master'.format(repo)).read()
+        last_commit = json.loads(codecs.decode(response, 'utf-8'))['object']['sha']
+        with open(cachepath, 'w') as f:
+            f.write(last_commit)
+    # get the list of branches containing commit
+    git = 'git.exe' if platform.system() == 'Windows' else 'git'
+    branches = subprocess.check_output([git, 'branch', '--contains', last_commit]).split(b'\n')
+    # test if current branch contains the commit
+    if not any(b.startswith(b'* ') for b in branches):
+        print('\x1B[33;40m{}\x1B[0m'.format(
+            'WARNING: Remote template changed, consider merging updates from GitHub: {}'.format(repo)))
